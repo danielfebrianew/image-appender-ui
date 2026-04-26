@@ -53,8 +53,9 @@ export function PreviewPane() {
   const prevActiveTrackId = useRef<string | null>(null);
   useEffect(() => {
     const incomingId = activeTrack?.id ?? null;
+    const clickAllowed = activeTrack?.kind === "image" ? (activeTrack.clickEnabled !== false) : false;
     if (incomingId !== null && incomingId !== prevActiveTrackId.current && isPlaying) {
-      if (clickSound.enabled) {
+      if (clickSound.enabled && clickAllowed) {
         const audio = clickAudioRef.current;
         if (audio) {
           audio.volume = Math.max(0, Math.min(1, clickSound.volume));
@@ -64,7 +65,7 @@ export function PreviewPane() {
       }
     }
     prevActiveTrackId.current = incomingId;
-  }, [activeTrack?.id, clickSound.enabled, clickSound.volume, isPlaying]);
+  }, [activeTrack, clickSound.enabled, clickSound.volume, isPlaying]);
 
   useEffect(() => {
     setDuration(videoMeta.duration);
@@ -204,10 +205,21 @@ export function PreviewPane() {
           </div>
         )}
 
-        {activeTrack && (
+        {activeTrack && activeTrack.kind === "image" && (
           <img
             src={activeTrack.imageUrl}
             alt={activeTrack.imageName}
+            className="absolute bottom-0 left-0 w-full"
+            style={{
+              height: `${layout.overlayHeightPct}%`,
+              objectFit: activeTrack.fit ?? layout.imageFit,
+            }}
+          />
+        )}
+        {activeTrack && activeTrack.kind === "video" && (
+          <img
+            src={activeTrack.thumbnailUrl}
+            alt={activeTrack.videoName}
             className="absolute bottom-0 left-0 w-full"
             style={{
               height: `${layout.overlayHeightPct}%`,

@@ -12,6 +12,7 @@ import { usePlaybackStore, useProjectStore } from "@/lib/store";
 import { TimelineRuler } from "@/components/editor/Timeline/TimelineRuler";
 import { VideoTrack } from "@/components/editor/Timeline/VideoTrack";
 import { ImageTrack } from "@/components/editor/Timeline/ImageTrack";
+import { VideoClipTrack } from "@/components/editor/Timeline/VideoClipTrack";
 import { TimelineCursor } from "@/components/editor/Timeline/TimelineCursor";
 
 export function Timeline() {
@@ -26,6 +27,8 @@ export function Timeline() {
   const setCurrentTime = usePlaybackStore((state) => state.setCurrentTime);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }));
 
+  const imageTracks = tracks.filter((t) => t.kind === "image");
+  const videoClipTracks = tracks.filter((t) => t.kind === "video");
   const edges = tracks.flatMap((track) => [track.startSec, track.endSec]);
 
   function handleDragEnd(event: DragEndEvent) {
@@ -100,13 +103,14 @@ export function Timeline() {
   }
 
   return (
-    <section className="relative h-47 border-t border-[#2a2a2a] bg-[#0d0d0d]">
+    <section className="relative border-t border-[#2a2a2a] bg-[#0d0d0d]">
       <div className="flex h-8 items-center border-b border-[#1f1f1f] px-3">
         <div className="text-[12px] font-semibold text-[#f0f0f0]">Timeline</div>
       </div>
       <div
         ref={containerRef}
-        className="relative h-39 overflow-auto"
+        className="relative overflow-auto"
+        style={{ maxHeight: "calc(100vh - 520px)", minHeight: 120 }}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
           const x = event.clientX - rect.left + event.currentTarget.scrollLeft - 56;
@@ -121,25 +125,54 @@ export function Timeline() {
           <TimelineRuler duration={duration} zoom={zoom} />
           <VideoTrack duration={duration} zoom={zoom} />
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <div className="relative h-16">
+            {/* Image overlay row */}
+            <div className="relative h-16 border-b border-[#1a1a1a]">
               <div className="absolute left-0 top-8 w-12 text-[11px] text-[#555]">
                 Imgs
               </div>
-              {tracks.length === 0 ? (
+              {imageTracks.length === 0 ? (
                 <div className="absolute left-14 top-5 flex items-center gap-2 text-[12px] text-[#555]">
                   <MousePointer2 size={14} />
                   Press Ctrl+V to paste your first image
                 </div>
               ) : (
-                tracks.map((track) => (
-                  <ImageTrack
-                    key={track.id}
-                    track={track}
-                    zoom={zoom}
-                    selected={selectedTrackId === track.id}
-                    onSelect={() => selectTrack(track.id)}
-                    onResizeStart={(edge, event) => startResize(track.id, edge, event)}
-                  />
+                imageTracks.map((track) => (
+                  track.kind === "image" && (
+                    <ImageTrack
+                      key={track.id}
+                      track={track}
+                      zoom={zoom}
+                      selected={selectedTrackId === track.id}
+                      onSelect={() => selectTrack(track.id)}
+                      onResizeStart={(edge, event) => startResize(track.id, edge, event)}
+                    />
+                  )
+                ))
+              )}
+            </div>
+
+            {/* Video clip overlay row */}
+            <div className="relative h-16">
+              <div className="absolute left-0 top-8 w-12 text-[11px] text-[#555]">
+                Clips
+              </div>
+              {videoClipTracks.length === 0 ? (
+                <div className="absolute left-14 top-5 flex items-center gap-2 text-[12px] text-[#3a4a5a]">
+                  <MousePointer2 size={14} />
+                  Add video clips from library
+                </div>
+              ) : (
+                videoClipTracks.map((track) => (
+                  track.kind === "video" && (
+                    <VideoClipTrack
+                      key={track.id}
+                      track={track}
+                      zoom={zoom}
+                      selected={selectedTrackId === track.id}
+                      onSelect={() => selectTrack(track.id)}
+                      onResizeStart={(edge, event) => startResize(track.id, edge, event)}
+                    />
+                  )
                 ))
               )}
             </div>

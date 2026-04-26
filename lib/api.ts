@@ -1,4 +1,4 @@
-import type { Cover, ImageTrack, LayoutConfig, Project, ProjectImage, VideoMeta } from "@/lib/types";
+import type { Cover, ImageFit, ImageTrack, LayoutConfig, Project, ProjectImage, ProjectVideo, Track, VideoClipTrack, VideoMeta } from "@/lib/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -6,10 +6,22 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type BackendTrack = {
   id: string;
-  image_id: string;
+  image_id?: string | null;
+  video_id?: string | null;
   start_sec: number;
   end_sec: number;
   fit_override?: string | null;
+};
+
+type BackendVideo = {
+  video_id?: string;
+  id?: string;
+  filename?: string;
+  name?: string;
+  meta?: {
+    duration_sec?: number;
+    duration?: number;
+  };
 };
 
 type BackendImage = {
@@ -57,6 +69,7 @@ type BackendProject = {
   };
   tracks?: BackendTrack[];
   images?: BackendImage[];
+  videos?: BackendVideo[];
   cover?: BackendCover | null;
 };
 
@@ -96,18 +109,44 @@ function normalizeImage(raw: BackendImage): ProjectImage {
   };
 }
 
-function normalizeTrack(raw: BackendTrack, images: ProjectImage[]): ImageTrack {
-  const image = images.find((img) => img.id === raw.image_id);
+function normalizeVideo(raw: BackendVideo): ProjectVideo {
+  const id = raw.video_id ?? raw.id ?? crypto.randomUUID();
   return {
+    id,
+    name: raw.filename ?? raw.name ?? id,
+    thumbnailUrl: `${API_URL}/api/videos/${id}/thumbnail`,
+    durationSec: raw.meta?.duration_sec ?? raw.meta?.duration ?? 0,
+  };
+}
+
+function normalizeTrack(raw: BackendTrack, images: ProjectImage[], videos: ProjectVideo[]): Track {
+  if (raw.video_id) {
+    const video = videos.find((v) => v.id === raw.video_id);
+    const clip: VideoClipTrack = {
+      id: raw.id,
+      kind: "video",
+      videoId: raw.video_id,
+      videoName: video?.name ?? raw.video_id,
+      thumbnailUrl: video?.thumbnailUrl ?? `${API_URL}/api/videos/${raw.video_id}/thumbnail`,
+      startSec: raw.start_sec,
+      endSec: raw.end_sec,
+      fit: (raw.fit_override as ImageFit) ?? undefined,
+    };
+    return clip;
+  }
+  const image = images.find((img) => img.id === raw.image_id);
+  const imageTrack: ImageTrack = {
     id: raw.id,
-    imageId: raw.image_id,
+    kind: "image",
+    imageId: raw.image_id ?? "",
     imageUrl: image?.url ?? `${API_URL}/api/images/${raw.image_id}`,
-    imageName: image?.name ?? raw.image_id,
+    imageName: image?.name ?? (raw.image_id ?? ""),
     startSec: raw.start_sec,
     endSec: raw.end_sec,
-    fit: (raw.fit_override as ImageTrack["fit"]) ?? undefined,
+    fit: (raw.fit_override as ImageFit) ?? undefined,
     clickEnabled: true,
   };
+  return imageTrack;
 }
 
 function normalizeLayout(raw: BackendProject["layout"]): LayoutConfig {
@@ -127,7 +166,8 @@ function normalizeLayout(raw: BackendProject["layout"]): LayoutConfig {
 
 function normalizeProject(projectId: string, raw: BackendProject): Project {
   const images = (raw.images ?? []).map(normalizeImage);
-  const tracks = (raw.tracks ?? []).map((t) => normalizeTrack(t, images));
+  const videos = (raw.videos ?? []).map(normalizeVideo);
+  const tracks = (raw.tracks ?? []).map((t) => normalizeTrack(t, images, videos));
 
   const vm = raw.video_meta;
   const videoMeta: VideoMeta = {
@@ -153,6 +193,7 @@ function normalizeProject(projectId: string, raw: BackendProject): Project {
     },
     tracks,
     images,
+    videos,
     cover: normalizeCover(resolvedProjectId, raw.cover),
   };
 }
@@ -178,7 +219,8 @@ function serializeProject(project: Project): object {
     },
     tracks: project.tracks.map((t) => ({
       id: t.id,
-      image_id: t.imageId,
+      image_id: t.kind === "image" ? t.imageId : null,
+      video_id: t.kind === "video" ? t.videoId : null,
       start_sec: t.startSec,
       end_sec: t.endSec,
       fit_override: t.fit ?? null,
@@ -324,6 +366,35 @@ export async function startRender(projectId: string) {
 
   const data = await response.json();
   return data.job_id ?? data.jobId;
+}
+
+export async function listVideos(): Promise<ProjectVideo[]> {
+  const response = await fetch(`${API_URL}/api/videos`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Videos list failed (${response.status})`);
+  const data: BackendVideo[] = await response.json();
+  return data.map(normalizeVideo);
+}
+
+export async function addVideoTrack(
+  projectId: string,
+  videoId: string,
+  startSec: number,
+  endSec: number,
+  fit?: string,
+): Promise<Project> {
+  const response = await fetch(`${API_URL}/api/projects/${projectId}/tracks`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_id: videoId,
+      start_sec: startSec,
+      end_sec: endSec,
+      fit_override: fit ?? null,
+    }),
+  });
+  if (!response.ok) throw new Error(`Add video track failed (${response.status})`);
+  const data = await response.json();
+  return normalizeProject(projectId, data);
 }
 
 export function createDemoProject(projectId: string): Project {

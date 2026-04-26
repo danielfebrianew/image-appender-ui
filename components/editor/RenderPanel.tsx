@@ -56,8 +56,8 @@ export function RenderPanel() {
           const uploaded = await uploadImage(projectId, new File([blob], img.name, { type: blob.type }));
           // Remap all tracks referencing old local ID
           for (const track of useProjectStore.getState().tracks) {
-            if (track.imageId === img.id) {
-              updateTrack(track.id, { imageId: uploaded.id, imageUrl: uploaded.url }, false);
+            if (track.kind === "image" && track.imageId === img.id) {
+              updateTrack(track.id, { imageId: uploaded.id, imageUrl: uploaded.url } as never, false);
             }
           }
           removeImage(img.id);

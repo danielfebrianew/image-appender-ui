@@ -101,6 +101,7 @@ export function EditorShell({ projectId }: { projectId: string }) {
       );
       const track = {
         id: crypto.randomUUID(),
+        kind: "image" as const,
         imageId: image.id,
         imageUrl: image.url,
         imageName: image.name,

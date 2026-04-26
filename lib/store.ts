@@ -5,13 +5,14 @@ import type {
   ClickConfig,
   Command,
   Cover,
-  ImageTrack,
   LayoutConfig,
   LogLine,
   Project,
   ProjectImage,
+  ProjectVideo,
   RenderStatus,
   SaveStatus,
+  Track,
   TrackPatch,
   VideoMeta,
 } from "@/lib/types";
@@ -22,8 +23,9 @@ type ProjectState = {
   videoMeta: VideoMeta;
   layout: LayoutConfig;
   clickSound: ClickConfig;
-  tracks: ImageTrack[];
+  tracks: Track[];
   images: ProjectImage[];
+  videos: ProjectVideo[];
   cover: Cover | null;
   saveStatus: SaveStatus;
   lastError: string | null;
@@ -38,8 +40,9 @@ type ProjectState = {
   setVideoMeta(meta: VideoMeta): void;
   addImage(image: ProjectImage): void;
   removeImage(id: string): void;
+  setVideos(videos: ProjectVideo[]): void;
   setCover(cover: Cover | null): void;
-  addTrack(track: ImageTrack, record?: boolean): void;
+  addTrack(track: Track, record?: boolean): void;
   updateTrack(id: string, patch: TrackPatch, record?: boolean): void;
   removeTrack(id: string, record?: boolean): void;
   reorderTracks(ids: string[]): void;
@@ -78,6 +81,7 @@ function toProject(state: ProjectState): Project {
     clickSound: state.clickSound,
     tracks: state.tracks,
     images: state.images,
+    videos: state.videos,
     cover: state.cover,
   };
 }
@@ -100,7 +104,7 @@ function reverseCommand(command: Command): Command {
 function applyCommand(
   state: Pick<ProjectState, "tracks">,
   command: Command,
-): ImageTrack[] {
+): Track[] {
   if (command.type === "add_track") {
     return [...state.tracks, command.track];
   }
@@ -126,6 +130,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   clickSound: defaultClick,
   tracks: [],
   images: [],
+  videos: [],
   cover: null,
   saveStatus: "idle",
   lastError: null,
@@ -175,9 +180,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   removeImage(id) {
     set((state) => ({
       images: state.images.filter((image) => image.id !== id),
-      tracks: state.tracks.filter((track) => track.imageId !== id),
+      tracks: state.tracks.filter((track) => track.kind !== "image" || track.imageId !== id),
       saveStatus: "dirty",
     }));
+  },
+  setVideos(videos) {
+    set({ videos });
   },
   setCover(cover) {
     set({ cover });
@@ -199,7 +207,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const before = Object.fromEntries(
       Object.keys(patch).map((key) => [
         key,
-        beforeTrack[key as keyof ImageTrack],
+        beforeTrack[key as keyof Track],
       ]),
     ) as TrackPatch;
 
@@ -237,7 +245,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((state) => ({
       tracks: ids
         .map((id) => state.tracks.find((track) => track.id === id))
-        .filter((track): track is ImageTrack => Boolean(track)),
+        .filter((track): track is Track => Boolean(track)),
       saveStatus: "dirty",
     }));
   },
@@ -268,6 +276,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       videoMeta: blankVideo,
       tracks: [],
       images: [],
+      videos: [],
       cover: null,
       saveStatus: "idle",
       lastError: null,

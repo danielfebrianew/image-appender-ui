@@ -42,6 +42,7 @@ export type Cover = {
 
 export type ImageTrack = {
   id: string;
+  kind: "image";
   imageId: string;
   imageUrl: string;
   imageName: string;
@@ -51,14 +52,35 @@ export type ImageTrack = {
   clickEnabled?: boolean;
 };
 
+export type VideoClipTrack = {
+  id: string;
+  kind: "video";
+  videoId: string;
+  videoName: string;
+  thumbnailUrl: string;
+  startSec: number;
+  endSec: number;
+  fit?: ImageFit;
+};
+
+export type Track = ImageTrack | VideoClipTrack;
+
+export type ProjectVideo = {
+  id: string;
+  name: string;
+  thumbnailUrl: string;
+  durationSec: number;
+};
+
 export type Project = {
   projectId: string;
   name: string;
   videoMeta: VideoMeta;
   layout: LayoutConfig;
   clickSound: ClickConfig;
-  tracks: ImageTrack[];
+  tracks: Track[];
   images: ProjectImage[];
+  videos: ProjectVideo[];
   cover: Cover | null;
 };
 
@@ -69,11 +91,11 @@ export type LogLine = {
   ts: string;
 };
 
-export type TrackPatch = Partial<Omit<ImageTrack, "id">>;
+export type TrackPatch = Partial<Omit<Track, "id" | "kind">>;
 
 export type Command =
-  | { type: "add_track"; track: ImageTrack }
-  | { type: "remove_track"; track: ImageTrack; index: number }
+  | { type: "add_track"; track: Track }
+  | { type: "remove_track"; track: Track; index: number }
   | {
       type: "update_track";
       id: string;
