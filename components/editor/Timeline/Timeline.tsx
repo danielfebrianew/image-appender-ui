@@ -56,34 +56,61 @@ export function Timeline() {
     if (!track) return;
 
     const startX = event.clientX;
-    const origin = { startSec: track.startSec, endSec: track.endSec };
+    const origin = {
+      startSec: track.startSec,
+      endSec: track.endSec,
+      trimStartSec: track.kind === "video" ? track.trimStartSec : 0,
+    };
+    const isVideoTrack = track.kind === "video";
+    const overlayDuration = isVideoTrack ? track.durationSec : Infinity;
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
 
     const move = (moveEvent: PointerEvent) => {
       const delta = pixelsToSeconds(moveEvent.clientX - startX, zoom);
       const precise = moveEvent.altKey;
-      const next =
-        edge === "left"
-          ? {
-              startSec: snapTime(origin.startSec + delta, {
-                precise,
-                playhead: currentTime,
-                edges,
-                zoom,
-              }),
-              endSec: origin.endSec,
-            }
-          : {
-              startSec: origin.startSec,
-              endSec: snapTime(origin.endSec + delta, {
-                precise,
-                playhead: currentTime,
-                edges,
-                zoom,
-              }),
-            };
-      updateTrack(trackId, clampTrackBounds(next.startSec, next.endSec, duration), false);
+
+      if (edge === "left") {
+        let newStart = snapTime(origin.startSec + delta, {
+          precise,
+          playhead: currentTime,
+          edges,
+          zoom,
+        });
+        // For video tracks: dragging left increases trim (going later into source),
+        // dragging right decreases trim (going earlier into source).
+        // trimStartSec moves opposite to startSec delta.
+        if (isVideoTrack) {
+          const startDelta = newStart - origin.startSec;
+          const newTrim = Math.max(0, origin.trimStartSec + startDelta);
+          // Also cap: can't trim past available source footage
+          const maxTrim = Math.max(0, overlayDuration - (origin.endSec - newStart));
+          const clampedTrim = Math.min(newTrim, maxTrim);
+          // Re-derive newStart from clamped trim so they stay in sync
+          newStart = origin.startSec + (clampedTrim - origin.trimStartSec);
+          const bounds = clampTrackBounds(newStart, origin.endSec, duration);
+          const finalTrim = Math.max(0, origin.trimStartSec + (bounds.startSec - origin.startSec));
+          updateTrack(trackId, { ...bounds, trimStartSec: finalTrim } as never, false);
+        } else {
+          updateTrack(trackId, clampTrackBounds(newStart, origin.endSec, duration), false);
+        }
+      } else {
+        const newEnd = snapTime(origin.endSec + delta, {
+          precise,
+          playhead: currentTime,
+          edges,
+          zoom,
+        });
+        if (isVideoTrack) {
+          // Right edge: clamp so trim + clip duration <= overlayDuration
+          const bounds = clampTrackBounds(origin.startSec, newEnd, duration);
+          const maxEnd = origin.startSec + (overlayDuration - origin.trimStartSec);
+          const clampedEnd = Math.min(bounds.endSec, maxEnd);
+          updateTrack(trackId, clampTrackBounds(origin.startSec, clampedEnd, duration), false);
+        } else {
+          updateTrack(trackId, clampTrackBounds(origin.startSec, newEnd, duration), false);
+        }
+      }
     };
 
     const up = () => {
@@ -94,7 +121,8 @@ export function Timeline() {
         updateTrack(trackId, {
           startSec: latest.startSec,
           endSec: latest.endSec,
-        });
+          ...(latest.kind === "video" ? { trimStartSec: latest.trimStartSec } : {}),
+        } as never);
       }
     };
 

@@ -3,15 +3,69 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Trash2, Upload, Video } from "lucide-react";
-import { deleteCover, uploadCover } from "@/lib/api";
+import { Film, Loader2, Trash2, Upload, Video } from "lucide-react";
+import { deleteCover, deleteVideo, listVideos, uploadCover, uploadVideo } from "@/lib/api";
 import { usePlaybackStore, useProjectStore } from "@/lib/store";
+import { resolveCollisionStart } from "@/lib/timeline-math";
+import type { ProjectVideo, VideoClipTrack } from "@/lib/types";
 import { useToast } from "@/components/ui/toast";
 
 function ratioClass(ratio: string) {
   if (ratio === "1:1") return "aspect-square";
   if (ratio === "16:9") return "aspect-video";
   return "aspect-[9/16]";
+}
+
+function VideoClipOverlay({
+  track,
+  currentTime,
+  isPlaying,
+  overlayHeightPct,
+  fit,
+}: {
+  track: VideoClipTrack;
+  currentTime: number;
+  isPlaying: boolean;
+  overlayHeightPct: number;
+  fit: string;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  // URL for the overlay video — resolve via backend stream endpoint
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const src = `${API_URL}/api/videos/${track.videoId}/stream`;
+
+  // Sync seek position
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    const overlayTime = track.trimStartSec + (currentTime - track.startSec);
+    if (Math.abs(video.currentTime - overlayTime) > 0.08) {
+      video.currentTime = Math.max(0, overlayTime);
+    }
+  }, [currentTime, track.startSec, track.trimStartSec]);
+
+  // Sync play/pause
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    if (isPlaying) {
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isPlaying]);
+
+  return (
+    <video
+      ref={ref}
+      src={src}
+      className="absolute bottom-0 left-0 w-full"
+      style={{ height: `${overlayHeightPct}%`, objectFit: fit as never }}
+      muted
+      playsInline
+      preload="auto"
+    />
+  );
 }
 
 export function PreviewPane() {
@@ -26,8 +80,11 @@ export function PreviewPane() {
     clickAudioRef.current = audio;
   }, []);
 
+  const clipInputRef = useRef<HTMLInputElement>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [clipUploading, setClipUploading] = useState(false);
+  const [videoLibrary, setVideoLibrary] = useState<ProjectVideo[]>([]);
 
   const tracks = useProjectStore((state) => state.tracks);
   const videoMeta = useProjectStore((state) => state.videoMeta);
@@ -36,11 +93,71 @@ export function PreviewPane() {
   const cover = useProjectStore((state) => state.cover);
   const setCover = useProjectStore((state) => state.setCover);
   const projectId = useProjectStore((state) => state.projectId);
+  const addTrack = useProjectStore((state) => state.addTrack);
+  const removeTrack = useProjectStore((state) => state.removeTrack);
   const currentTime = usePlaybackStore((state) => state.currentTime);
+  const duration = usePlaybackStore((state) => state.duration);
   const isPlaying = usePlaybackStore((state) => state.isPlaying);
   const setCurrentTime = usePlaybackStore((state) => state.setCurrentTime);
   const setDuration = usePlaybackStore((state) => state.setDuration);
   const setIsPlaying = usePlaybackStore((state) => state.setIsPlaying);
+  const selectTrack = usePlaybackStore((state) => state.selectTrack);
+
+  useEffect(() => {
+    listVideos().then(setVideoLibrary).catch(() => {});
+  }, []);
+
+  async function handleClipUpload(file: File) {
+    setClipUploading(true);
+    try {
+      const result = await uploadVideo(projectId, file);
+      const video: ProjectVideo = {
+        id: result.videoId,
+        name: file.name,
+        thumbnailUrl: `${result.url.replace("/stream", "")}/thumbnail`,
+        durationSec: result.duration,
+      };
+      setVideoLibrary((prev) => [video, ...prev]);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Upload failed", "error");
+    } finally {
+      setClipUploading(false);
+    }
+  }
+
+  async function handleDeleteVideo(videoId: string) {
+    try {
+      await deleteVideo(videoId);
+      setVideoLibrary((prev) => prev.filter((v) => v.id !== videoId));
+      // remove any timeline tracks referencing this video
+      const affected = useProjectStore.getState().tracks.filter(
+        (t) => t.kind === "video" && t.videoId === videoId,
+      );
+      affected.forEach((t) => removeTrack(t.id));
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Delete failed", "error");
+    }
+  }
+
+  function addClipToTimeline(video: ProjectVideo) {
+    if (duration <= 0) return;
+    const clipDur = Math.min(video.durationSec || 3, duration);
+    const startSec = resolveCollisionStart(currentTime, clipDur, useProjectStore.getState().tracks);
+    const endSec = Math.min(startSec + clipDur, duration);
+    const track: VideoClipTrack = {
+      id: crypto.randomUUID(),
+      kind: "video",
+      videoId: video.id,
+      videoName: video.name,
+      thumbnailUrl: video.thumbnailUrl,
+      durationSec: video.durationSec,
+      startSec,
+      endSec,
+      trimStartSec: 0,
+    };
+    addTrack(track);
+    selectTrack(track.id);
+  }
 
   const activeTrack = useMemo(
     () =>
@@ -217,14 +334,12 @@ export function PreviewPane() {
           />
         )}
         {activeTrack && activeTrack.kind === "video" && (
-          <img
-            src={activeTrack.thumbnailUrl}
-            alt={activeTrack.videoName}
-            className="absolute bottom-0 left-0 w-full"
-            style={{
-              height: `${layout.overlayHeightPct}%`,
-              objectFit: activeTrack.fit ?? layout.imageFit,
-            }}
+          <VideoClipOverlay
+            track={activeTrack}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            overlayHeightPct={layout.overlayHeightPct}
+            fit={activeTrack.fit ?? layout.imageFit}
           />
         )}
 
@@ -238,8 +353,56 @@ export function PreviewPane() {
         )}
       </div>
 
-      {/* Right spacer — keeps video centered */}
-      <div className="w-36 shrink-0" />
+      {/* Right: Clips panel */}
+      <div className="flex w-36 shrink-0 flex-col gap-2 self-stretch">
+        <div className="text-[11px] font-semibold uppercase text-[#555]">Clips</div>
+        <input
+          ref={clipInputRef}
+          type="file"
+          accept="video/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleClipUpload(file);
+            e.target.value = "";
+          }}
+        />
+        <button
+          onClick={() => clipInputRef.current?.click()}
+          disabled={clipUploading}
+          className="flex h-8 w-full items-center justify-center gap-1.5 rounded border border-dashed border-[#333] bg-[#161616] text-[11px] text-[#666] hover:border-[#2563eb] hover:text-[#93c5fd] disabled:opacity-50"
+        >
+          {clipUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+          {clipUploading ? "Uploading…" : "Upload clip"}
+        </button>
+        <div className="flex flex-col gap-1 overflow-y-auto">
+          {videoLibrary.map((video) => (
+            <div key={video.id} className="group relative flex items-center">
+              <button
+                disabled={duration <= 0}
+                onClick={() => addClipToTimeline(video)}
+                title={video.name}
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded border border-[#2a2a2a] bg-[#161616] px-1.5 py-1 text-left hover:border-[#2563eb] hover:bg-[#0f2032] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Film size={12} className="shrink-0 text-[#3b82f6]" />
+                <span className="min-w-0 truncate text-[11px] text-[#888] group-hover:text-[#93c5fd]">
+                  {video.name}
+                </span>
+              </button>
+              <button
+                onClick={() => void handleDeleteVideo(video.id)}
+                title="Delete clip"
+                className="absolute right-1 hidden rounded p-0.5 text-[#555] hover:text-[#f87171] group-hover:block"
+              >
+                <Trash2 size={11} />
+              </button>
+            </div>
+          ))}
+          {videoLibrary.length === 0 && !clipUploading && (
+            <div className="text-[10px] text-[#444]">No clips yet</div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

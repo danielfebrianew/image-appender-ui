@@ -44,8 +44,10 @@ function makeVideoClipTrack(
     videoId: video.id,
     videoName: video.name,
     thumbnailUrl: video.thumbnailUrl,
+    durationSec: video.durationSec,
     startSec: resolvedStart,
     endSec: resolvedEnd,
+    trimStartSec: 0,
   };
 }
 

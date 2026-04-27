@@ -58,8 +58,10 @@ export type VideoClipTrack = {
   videoId: string;
   videoName: string;
   thumbnailUrl: string;
+  durationSec: number;
   startSec: number;
   endSec: number;
+  trimStartSec: number;
   fit?: ImageFit;
 };
 

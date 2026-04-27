@@ -10,6 +10,7 @@ type BackendTrack = {
   video_id?: string | null;
   start_sec: number;
   end_sec: number;
+  trim_start_sec?: number;
   fit_override?: string | null;
 };
 
@@ -128,8 +129,10 @@ function normalizeTrack(raw: BackendTrack, images: ProjectImage[], videos: Proje
       videoId: raw.video_id,
       videoName: video?.name ?? raw.video_id,
       thumbnailUrl: video?.thumbnailUrl ?? `${API_URL}/api/videos/${raw.video_id}/thumbnail`,
+      durationSec: video?.durationSec ?? 0,
       startSec: raw.start_sec,
       endSec: raw.end_sec,
+      trimStartSec: raw.trim_start_sec ?? 0,
       fit: (raw.fit_override as ImageFit) ?? undefined,
     };
     return clip;
@@ -223,6 +226,7 @@ function serializeProject(project: Project): object {
       video_id: t.kind === "video" ? t.videoId : null,
       start_sec: t.startSec,
       end_sec: t.endSec,
+      trim_start_sec: t.kind === "video" ? t.trimStartSec : 0,
       fit_override: t.fit ?? null,
     })),
   };
@@ -373,6 +377,11 @@ export async function listVideos(): Promise<ProjectVideo[]> {
   if (!response.ok) throw new Error(`Videos list failed (${response.status})`);
   const data: BackendVideo[] = await response.json();
   return data.map(normalizeVideo);
+}
+
+export async function deleteVideo(videoId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/videos/${videoId}`, { method: "DELETE" });
+  if (!response.ok) throw new Error(`Delete video failed (${response.status})`);
 }
 
 export async function addVideoTrack(
