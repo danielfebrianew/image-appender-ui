@@ -84,7 +84,6 @@ export function PreviewPane() {
   const [videoReady, setVideoReady] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [clipUploading, setClipUploading] = useState(false);
-  const [videoLibrary, setVideoLibrary] = useState<ProjectVideo[]>([]);
 
   const tracks = useProjectStore((state) => state.tracks);
   const videoMeta = useProjectStore((state) => state.videoMeta);
@@ -92,8 +91,11 @@ export function PreviewPane() {
   const clickSound = useProjectStore((state) => state.clickSound);
   const cover = useProjectStore((state) => state.cover);
   const setCover = useProjectStore((state) => state.setCover);
+  const videoLibrary = useProjectStore((state) => state.videos);
+  const addVideo = useProjectStore((state) => state.addVideo);
+  const removeVideo = useProjectStore((state) => state.removeVideo);
+  const setVideos = useProjectStore((state) => state.setVideos);
   const addTrack = useProjectStore((state) => state.addTrack);
-  const removeTrack = useProjectStore((state) => state.removeTrack);
   const currentTime = usePlaybackStore((state) => state.currentTime);
   const duration = usePlaybackStore((state) => state.duration);
   const isPlaying = usePlaybackStore((state) => state.isPlaying);
@@ -103,7 +105,9 @@ export function PreviewPane() {
   const selectTrack = usePlaybackStore((state) => state.selectTrack);
 
   useEffect(() => {
-    listVideos().then(setVideoLibrary).catch(() => {});
+    if (videoLibrary.length === 0) {
+      listVideos().then(setVideos).catch(() => {});
+    }
   }, []);
 
   async function handleClipUpload(file: File) {
@@ -116,7 +120,7 @@ export function PreviewPane() {
         thumbnailUrl: `${result.url.replace("/stream", "")}/thumbnail`,
         durationSec: result.duration,
       };
-      setVideoLibrary((prev) => [video, ...prev]);
+      addVideo(video);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Upload failed", "error");
     } finally {
@@ -127,12 +131,7 @@ export function PreviewPane() {
   async function handleDeleteVideo(videoId: string) {
     try {
       await deleteVideo(videoId);
-      setVideoLibrary((prev) => prev.filter((v) => v.id !== videoId));
-      // remove any timeline tracks referencing this video
-      const affected = useProjectStore.getState().tracks.filter(
-        (t) => t.kind === "video" && t.videoId === videoId,
-      );
-      affected.forEach((t) => removeTrack(t.id));
+      removeVideo(videoId);
     } catch (err) {
       toast(err instanceof Error ? err.message : "Delete failed", "error");
     }

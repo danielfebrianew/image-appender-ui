@@ -360,11 +360,39 @@ export async function deleteCover(coverId: string): Promise<void> {
   }
 }
 
-export async function startRender(projectId: string) {
+export async function startRender(project: Project) {
+  const body = {
+    video_id: project.videoMeta.videoId,
+    cover_id: project.cover?.coverId || null,
+    layout: {
+      image_fit: project.layout.imageFit,
+      overlay_height_pct: project.layout.overlayHeightPct,
+      image_area_ratio: project.layout.overlayHeightPct / 100,
+      image_position: "bottom",
+      background_color: project.layout.backgroundColor,
+      aspect_ratio: project.layout.aspectRatio,
+    },
+    click_sound: {
+      enabled: project.clickSound.enabled,
+      asset: project.clickSound.asset,
+      volume: project.clickSound.volume,
+      trigger: "on_image_start",
+    },
+    tracks: project.tracks.map((t) => ({
+      id: t.id,
+      image_id: t.kind === "image" ? t.imageId : null,
+      video_id: t.kind === "video" ? t.videoId : null,
+      start_sec: t.startSec,
+      end_sec: t.endSec,
+      trim_start_sec: t.kind === "video" ? t.trimStartSec : 0,
+      fit_override: t.fit ?? null,
+    })),
+  };
+
   const response = await fetch(`${API_URL}/api/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ project_id: projectId }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {

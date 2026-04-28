@@ -5,12 +5,10 @@ import { Download, TerminalSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { RenderStatus } from "@/lib/types";
-import { resolveUrl, saveProject, startRender, uploadImage } from "@/lib/api";
+import { resolveUrl, startRender, uploadImage } from "@/lib/api";
 import { getProjectSnapshot, useProjectStore, useRenderStore } from "@/lib/store";
 import { connectRenderSocket } from "@/lib/ws";
 import { useToast } from "@/components/ui/toast";
-
-const SESSION_PROJECT_ID = "session";
 
 const STATUS_STYLES: Record<RenderStatus, string> = {
   idle: "text-[#555]",
@@ -63,10 +61,7 @@ export function RenderPanel() {
         }
       }
 
-      // Save current state as the session project, then render it
-      const snapshot = { ...getProjectSnapshot(), projectId: SESSION_PROJECT_ID };
-      await saveProject(snapshot);
-      const jobId = await startRender(SESSION_PROJECT_ID);
+      const jobId = await startRender(getProjectSnapshot());
       setJob(jobId);
       appendLog({ level: "info", message: "Render queued" });
       connectRenderSocket(jobId, (message) => {

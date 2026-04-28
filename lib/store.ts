@@ -41,6 +41,8 @@ type ProjectState = {
   addImage(image: ProjectImage): void;
   removeImage(id: string): void;
   setVideos(videos: ProjectVideo[]): void;
+  addVideo(video: ProjectVideo): void;
+  removeVideo(id: string): void;
   setCover(cover: Cover | null): void;
   addTrack(track: Track, record?: boolean): void;
   updateTrack(id: string, patch: TrackPatch, record?: boolean): void;
@@ -187,6 +189,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setVideos(videos) {
     set({ videos });
   },
+  addVideo(video) {
+    set((state) => ({
+      videos: state.videos.some((v) => v.id === video.id)
+        ? state.videos
+        : [video, ...state.videos],
+    }));
+  },
+  removeVideo(id) {
+    set((state) => ({
+      videos: state.videos.filter((v) => v.id !== id),
+      tracks: state.tracks.filter((t) => t.kind !== "video" || t.videoId !== id),
+    }));
+  },
   setCover(cover) {
     set({ cover });
   },
@@ -276,7 +291,6 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       videoMeta: blankVideo,
       tracks: [],
       images: [],
-      videos: [],
       cover: null,
       saveStatus: "idle",
       lastError: null,
