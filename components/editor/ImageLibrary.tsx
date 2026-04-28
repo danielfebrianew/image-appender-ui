@@ -57,7 +57,6 @@ export function ImageLibrary() {
   const [videoLibrary, setVideoLibrary] = useState<ProjectVideo[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
 
-  const projectId = useProjectStore((state) => state.projectId);
   const images = useProjectStore((state) => state.images);
   const tracks = useProjectStore((state) => state.tracks);
   const addImage = useProjectStore((state) => state.addImage);
@@ -90,24 +89,15 @@ export function ImageLibrary() {
         if (!file.type.startsWith("image/")) continue;
 
         let image: ProjectImage;
-        if (projectId === "demo") {
+        try {
+          image = await uploadImage(file);
+        } catch {
           image = {
             id: crypto.randomUUID(),
             url: URL.createObjectURL(file),
             name: file.name,
             createdAt: new Date().toISOString(),
           };
-        } else {
-          try {
-            image = await uploadImage(projectId, file);
-          } catch {
-            image = {
-              id: crypto.randomUUID(),
-              url: URL.createObjectURL(file),
-              name: file.name,
-              createdAt: new Date().toISOString(),
-            };
-          }
         }
 
         addImage(image);

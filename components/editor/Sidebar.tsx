@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Check, Loader2, MousePointerClick, SlidersHorizontal, Upload } from "lucide-react";
-import { createProject, uploadVideo } from "@/lib/api";
+import { uploadVideo } from "@/lib/api";
 import { usePlaybackStore, useProjectStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 
@@ -11,12 +11,10 @@ export function Sidebar() {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const [videoUploading, setVideoUploading] = useState(false);
 
-  const projectId = useProjectStore((state) => state.projectId);
   const name = useProjectStore((state) => state.name);
   const videoMeta = useProjectStore((state) => state.videoMeta);
   const layout = useProjectStore((state) => state.layout);
   const clickSound = useProjectStore((state) => state.clickSound);
-  const hydrate = useProjectStore((state) => state.hydrate);
   const setName = useProjectStore((state) => state.setName);
   const setVideoMeta = useProjectStore((state) => state.setVideoMeta);
   const updateLayout = useProjectStore((state) => state.updateLayout);
@@ -57,23 +55,12 @@ export function Sidebar() {
 
     // Upload to backend in background to get video_id for rendering
     try {
-      const result = await uploadVideo(projectId, file);
+      const result = await uploadVideo(file);
       videoId = result.videoId;
       const current = useProjectStore.getState().videoMeta;
       setVideoMeta({ ...current, videoId, duration: result.duration, width: result.width, height: result.height, fps: result.fps });
     } catch {
       toast("Backend unavailable — render will not work", "warn");
-    }
-
-    if (projectId === "demo" && videoId) {
-      try {
-        const { tracks: existingTracks, images: existingImages, videoMeta: existingVideoMeta, layout, clickSound, name } = useProjectStore.getState();
-        const project = await createProject(projectName, videoId);
-        hydrate({ ...project, name, layout, clickSound, tracks: existingTracks, images: existingImages, videoMeta: existingVideoMeta });
-        window.history.replaceState(null, "", `/editor/${project.projectId}`);
-      } catch {
-        toast("Project creation failed — render unavailable", "error");
-      }
     }
 
     setVideoUploading(false);

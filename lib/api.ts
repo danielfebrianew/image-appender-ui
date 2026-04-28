@@ -93,6 +93,7 @@ export function resolveUrl(url: string | undefined): string {
 function normalizeCover(projectId: string, raw: BackendCover | null | undefined): Cover | null {
   if (!raw || !raw.filename) return null;
   return {
+    coverId: "",
     url: `${API_URL}/api/projects/${projectId}/cover?v=${encodeURIComponent(raw.filename)}`,
     filename: raw.filename,
     width: raw.width ?? 0,
@@ -275,7 +276,7 @@ export async function saveProject(project: Project) {
 }
 
 // Upload image globally (backend: POST /api/images), not per-project
-export async function uploadImage(_projectId: string, file: Blob): Promise<ProjectImage> {
+export async function uploadImage(file: Blob): Promise<ProjectImage> {
   const form = new FormData();
   form.append("file", file, file instanceof File ? file.name : "clipboard.png");
 
@@ -300,7 +301,6 @@ export async function deleteImage(_projectId: string, imageId: string) {
 
 // Upload video globally (backend: POST /api/videos), returns VideoMeta + video_id
 export async function uploadVideo(
-  _projectId: string,
   file: File,
 ): Promise<VideoMeta & { videoId: string }> {
   const form = new FormData();
@@ -327,11 +327,11 @@ export async function uploadVideo(
   };
 }
 
-export async function uploadCover(projectId: string, file: Blob): Promise<Cover> {
+export async function uploadCover(file: Blob): Promise<Cover> {
   const form = new FormData();
   form.append("file", file, file instanceof File ? file.name : "cover.png");
 
-  const response = await fetch(`${API_URL}/api/projects/${projectId}/cover`, {
+  const response = await fetch(`${API_URL}/api/covers`, {
     method: "POST",
     body: form,
   });
@@ -340,16 +340,19 @@ export async function uploadCover(projectId: string, file: Blob): Promise<Cover>
     throw new Error(`Cover upload failed (${response.status})`);
   }
 
-  const data: BackendProject = await response.json();
-  const cover = normalizeCover(projectId, data.cover);
-  if (!cover) {
-    throw new Error("Cover upload returned no cover data");
-  }
-  return cover;
+  const data = await response.json();
+  return {
+    coverId: data.cover_id,
+    url: `${API_URL}/api/covers/${data.cover_id}`,
+    filename: data.filename,
+    width: data.width,
+    height: data.height,
+    durationSec: 0.5,
+  };
 }
 
-export async function deleteCover(projectId: string): Promise<void> {
-  const response = await fetch(`${API_URL}/api/projects/${projectId}/cover`, {
+export async function deleteCover(coverId: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/covers/${coverId}`, {
     method: "DELETE",
   });
   if (!response.ok) {

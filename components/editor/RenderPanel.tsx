@@ -10,6 +10,8 @@ import { getProjectSnapshot, useProjectStore, useRenderStore } from "@/lib/store
 import { connectRenderSocket } from "@/lib/ws";
 import { useToast } from "@/components/ui/toast";
 
+const SESSION_PROJECT_ID = "session";
+
 const STATUS_STYLES: Record<RenderStatus, string> = {
   idle: "text-[#555]",
   queued: "text-[#facc15]",
@@ -29,7 +31,6 @@ function StatusBadge({ status }: { status: RenderStatus }) {
 
 export function RenderPanel() {
   const { toast } = useToast();
-  const projectId = useProjectStore((state) => state.projectId);
   const status = useRenderStore((state) => state.status);
   const progress = useRenderStore((state) => state.progress);
   const logLines = useRenderStore((state) => state.logLines);
@@ -42,19 +43,14 @@ export function RenderPanel() {
   const fail = useRenderStore((state) => state.fail);
 
   async function handleRender() {
-    if (projectId === "demo") {
-      toast("Render requires a backend project. Upload a video to create a real project first.", "warn");
-      return;
-    }
     try {
-      // Upload any local-only images (object URLs) to backend before rendering
-      const { images, tracks, updateTrack, addImage, removeImage } = useProjectStore.getState();
+      // Upload any local-only blob images to backend first
+      const { images, updateTrack, addImage, removeImage } = useProjectStore.getState();
       for (const img of images) {
         if (!img.url.startsWith("blob:")) continue;
         try {
           const blob = await fetch(img.url).then((r) => r.blob());
-          const uploaded = await uploadImage(projectId, new File([blob], img.name, { type: blob.type }));
-          // Remap all tracks referencing old local ID
+          const uploaded = await uploadImage(new File([blob], img.name, { type: blob.type }));
           for (const track of useProjectStore.getState().tracks) {
             if (track.kind === "image" && track.imageId === img.id) {
               updateTrack(track.id, { imageId: uploaded.id, imageUrl: uploaded.url } as never, false);
@@ -66,18 +62,16 @@ export function RenderPanel() {
           // keep local image, render may fail for this track
         }
       }
-      // Save project with updated tracks to backend
-      await saveProject(getProjectSnapshot());
 
-      const jobId = await startRender(projectId);
+      // Save current state as the session project, then render it
+      const snapshot = { ...getProjectSnapshot(), projectId: SESSION_PROJECT_ID };
+      await saveProject(snapshot);
+      const jobId = await startRender(SESSION_PROJECT_ID);
       setJob(jobId);
       appendLog({ level: "info", message: "Render queued" });
       connectRenderSocket(jobId, (message) => {
         if (message.type === "log") {
-          appendLog({
-            level: message.level ?? "info",
-            message: message.line ?? message.message ?? "",
-          });
+          appendLog({ level: message.level ?? "info", message: message.line ?? message.message ?? "" });
         }
         if (message.type === "progress") {
           setStatus("running");

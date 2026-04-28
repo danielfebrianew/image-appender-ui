@@ -92,7 +92,6 @@ export function PreviewPane() {
   const clickSound = useProjectStore((state) => state.clickSound);
   const cover = useProjectStore((state) => state.cover);
   const setCover = useProjectStore((state) => state.setCover);
-  const projectId = useProjectStore((state) => state.projectId);
   const addTrack = useProjectStore((state) => state.addTrack);
   const removeTrack = useProjectStore((state) => state.removeTrack);
   const currentTime = usePlaybackStore((state) => state.currentTime);
@@ -110,7 +109,7 @@ export function PreviewPane() {
   async function handleClipUpload(file: File) {
     setClipUploading(true);
     try {
-      const result = await uploadVideo(projectId, file);
+      const result = await uploadVideo(file);
       const video: ProjectVideo = {
         id: result.videoId,
         name: file.name,
@@ -208,13 +207,9 @@ export function PreviewPane() {
   }, [isPlaying, setIsPlaying]);
 
   async function handleCoverFile(file: File) {
-    if (!projectId || projectId === "demo") {
-      toast("Upload a video first to create the project.", "warn");
-      return;
-    }
     setCoverUploading(true);
     try {
-      const uploaded = await uploadCover(projectId, file);
+      const uploaded = await uploadCover(file);
       setCover(uploaded);
       toast("Cover uploaded", "success");
     } catch (err) {
@@ -225,10 +220,9 @@ export function PreviewPane() {
   }
 
   async function handleRemoveCover() {
-    if (!projectId || projectId === "demo") return;
     setCoverUploading(true);
     try {
-      await deleteCover(projectId);
+      await deleteCover(cover?.coverId ?? "");
       setCover(null);
       toast("Cover removed", "success");
     } catch (err) {
@@ -238,7 +232,7 @@ export function PreviewPane() {
     }
   }
 
-  const noProject = !projectId || projectId === "demo";
+  const noProject = false;
 
   return (
     <section className="flex min-w-60 flex-1 items-center justify-center gap-4 overflow-hidden bg-[#111] px-4 py-4">

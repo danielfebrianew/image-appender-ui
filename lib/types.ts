@@ -33,6 +33,7 @@ export type ProjectImage = {
 };
 
 export type Cover = {
+  coverId: string;
   url: string;
   filename: string;
   width: number;
