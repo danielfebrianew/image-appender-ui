@@ -35,6 +35,7 @@ export function EditorShell() {
   const undo = useProjectStore((state) => state.undo);
   const redo = useProjectStore((state) => state.redo);
   const resetProject = useProjectStore((state) => state.reset);
+  const videoUploading = useProjectStore((state) => state.videoUploading);
   const currentTime = usePlaybackStore((state) => state.currentTime);
   const selectedTrackId = usePlaybackStore((state) => state.selectedTrackId);
   const duration = usePlaybackStore((state) => state.duration);
@@ -212,9 +213,11 @@ export function EditorShell() {
         <Button
           size="sm"
           variant="secondary"
+          disabled={videoUploading}
           onClick={() => window.dispatchEvent(new CustomEvent("contextclipper:render"))}
+          title={videoUploading ? "Tunggu video selesai upload…" : undefined}
         >
-          Render
+          {videoUploading ? "Uploading…" : "Render"}
         </Button>
       </header>
       <main className="flex min-h-0 flex-1">

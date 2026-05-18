@@ -361,6 +361,8 @@ export async function deleteCover(coverId: string): Promise<void> {
 }
 
 export async function startRender(project: Project) {
+  if (!project.videoMeta.videoId) throw new Error("Main video belum selesai diupload, tunggu sebentar lalu coba lagi");
+
   const body = {
     video_id: project.videoMeta.videoId,
     cover_id: project.cover?.coverId || null,
@@ -396,7 +398,8 @@ export async function startRender(project: Project) {
   });
 
   if (!response.ok) {
-    throw new Error(`Render start failed (${response.status})`);
+    const detail = await response.json().catch(() => null);
+    throw new Error(`Render start failed (${response.status}): ${JSON.stringify(detail)}`);
   }
 
   const data = await response.json();

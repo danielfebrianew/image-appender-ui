@@ -29,6 +29,7 @@ function StatusBadge({ status }: { status: RenderStatus }) {
 
 export function RenderPanel() {
   const { toast } = useToast();
+  const videoUploading = useProjectStore((state) => state.videoUploading);
   const status = useRenderStore((state) => state.status);
   const progress = useRenderStore((state) => state.progress);
   const logLines = useRenderStore((state) => state.logLines);
@@ -98,7 +99,7 @@ export function RenderPanel() {
     return () => window.removeEventListener("contextclipper:render", render);
   }, []);
 
-  const busy = status === "queued" || status === "running";
+  const busy = status === "queued" || status === "running" || videoUploading;
 
   return (
     <section className="border-t border-[#2a2a2a] bg-[#101010]">

@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast";
 export function Sidebar() {
   const { toast } = useToast();
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploading, setLocalVideoUploading] = useState(false);
 
   const name = useProjectStore((state) => state.name);
   const videoMeta = useProjectStore((state) => state.videoMeta);
@@ -17,6 +17,7 @@ export function Sidebar() {
   const clickSound = useProjectStore((state) => state.clickSound);
   const setName = useProjectStore((state) => state.setName);
   const setVideoMeta = useProjectStore((state) => state.setVideoMeta);
+  const setVideoUploading = useProjectStore((state) => state.setVideoUploading);
   const updateLayout = useProjectStore((state) => state.updateLayout);
   const updateClickSound = useProjectStore((state) => state.updateClickSound);
   const setDuration = usePlaybackStore((state) => state.setDuration);
@@ -28,12 +29,12 @@ export function Sidebar() {
   }
 
   async function handleVideoFile(file: File) {
+    setLocalVideoUploading(true);
     setVideoUploading(true);
     const projectName = deriveProjectName(file.name);
     setName(projectName);
 
     const localUrl = URL.createObjectURL(file);
-    let videoId: string | null = null;
 
     // Always use local object URL for preview playback
     await new Promise<void>((resolve) => {
@@ -56,14 +57,14 @@ export function Sidebar() {
     // Upload to backend in background to get video_id for rendering
     try {
       const result = await uploadVideo(file);
-      videoId = result.videoId;
       const current = useProjectStore.getState().videoMeta;
-      setVideoMeta({ ...current, videoId, duration: result.duration, width: result.width, height: result.height, fps: result.fps });
+      setVideoMeta({ ...current, videoId: result.videoId, duration: result.duration, width: result.width, height: result.height, fps: result.fps });
     } catch {
       toast("Backend unavailable — render will not work", "warn");
+    } finally {
+      setLocalVideoUploading(false);
+      setVideoUploading(false);
     }
-
-    setVideoUploading(false);
   }
 
   return (

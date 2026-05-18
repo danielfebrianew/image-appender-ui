@@ -21,6 +21,7 @@ type ProjectState = {
   projectId: string;
   name: string;
   videoMeta: VideoMeta;
+  videoUploading: boolean;
   layout: LayoutConfig;
   clickSound: ClickConfig;
   tracks: Track[];
@@ -38,6 +39,7 @@ type ProjectState = {
   updateLayout(patch: Partial<LayoutConfig>): void;
   updateClickSound(patch: Partial<ClickConfig>): void;
   setVideoMeta(meta: VideoMeta): void;
+  setVideoUploading(uploading: boolean): void;
   addImage(image: ProjectImage): void;
   removeImage(id: string): void;
   setVideos(videos: ProjectVideo[]): void;
@@ -128,6 +130,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   projectId: "",
   name: "",
   videoMeta: blankVideo,
+  videoUploading: false,
   layout: defaultLayout,
   clickSound: defaultClick,
   tracks: [],
@@ -170,6 +173,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
   setVideoMeta(meta) {
     set({ videoMeta: meta, saveStatus: "dirty" });
+  },
+  setVideoUploading(uploading) {
+    set({ videoUploading: uploading });
   },
   addImage(image) {
     set((state) => ({
@@ -289,6 +295,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   reset() {
     set({
       videoMeta: blankVideo,
+      videoUploading: false,
       tracks: [],
       images: [],
       cover: null,
